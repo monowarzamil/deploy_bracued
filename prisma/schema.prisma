@@ -1,0 +1,237 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  STUDENT
+  FACULTY
+}
+
+model Profile {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  role      Role     @default(STUDENT)
+  password  String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  courses          Course[]
+  bookMarks        BookMark[]
+  facultySlots     ConsultationSlot[] @relation("FacultySlots")
+  bookedSlots      ConsultationSlot[] @relation("StudentBookings")
+  Booking          Booking[]
+  Assignment       Assignment[]
+  Submission       Submission[]
+  Notification     Notification[]
+  Enrollment       Enrollment[]
+  Resource         Resource[]
+  Attendance       Attendance[]
+  AttendanceRecord AttendanceRecord[]
+
+  @@map("profiles")
+}
+
+model Course {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  courseCode  String   @unique
+  section     String   @unique
+  credit      String
+  days        String[]
+  schedule    String
+  facultyId   String   @map("faculty_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  faculty      Profile        @relation(fields: [facultyId], references: [id])
+  Assignment   Assignment[]
+  Enrollment   Enrollment[]
+  Resource     Resource[]
+  Attendance   Attendance[]
+  Notification Notification[]
+
+  @@map("courses")
+}
+
+model Enrollment {
+  id        String   @id @default(uuid())
+  studentId String   @map("student_id")
+  courseId  String   @map("course_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  student Profile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId])
+  @@map("enrollments")
+}
+
+model ConsultationSlot {
+  id         String   @id @default(uuid())
+  facultyId  String   @map("faculty_id")
+  courseCode String?
+  date       DateTime
+  days       String[]
+  startTime  String   @map("start_time")
+  endTime    String   @map("end_time")
+  room       String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  faculty  Profile   @relation("FacultySlots", fields: [facultyId], references: [id])
+  students Profile[] @relation("StudentBookings")
+  booking  Booking[]
+
+  @@map("consultation_slots")
+}
+
+enum BookingStatus {
+  confirmed
+  pending
+  rejected
+}
+
+model Booking {
+  id        String        @id @default(uuid())
+  slotId    String        @map("slot_id")
+  studentId String        @map("student_id")
+  status    BookingStatus @default(pending)
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  slot    ConsultationSlot @relation(fields: [slotId], references: [id])
+  student Profile          @relation(fields: [studentId], references: [id])
+
+  @@unique([slotId, studentId])
+  @@map("bookings")
+}
+
+model Resource {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  type        String
+  url         String
+  topic       String?
+  courseId    String     @map("course_id")
+  facultyId   String     @map("faculty_id")
+  bookMarks   BookMark[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  course       Course         @relation(fields: [courseId], references: [id])
+  faculty      Profile        @relation(fields: [facultyId], references: [id])
+  Notification Notification[]
+
+  @@map("resources")
+}
+
+model BookMark {
+  id         String   @id @default(uuid())
+  profile    Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId  String
+  resourceId String
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([profileId, resourceId])
+  @@map("bookmarks")
+}
+
+model Assignment {
+  id               String   @id @default(uuid())
+  title            String
+  description      String
+  courseId         String   @map("course_id")
+  facultyId        String   @map("faculty_id")
+  assignmentNumber Int      @map("assignment_number")
+  dueDate          DateTime @map("due_date")
+  topic            String?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  course       Course         @relation(fields: [courseId], references: [id])
+  faculty      Profile        @relation(fields: [facultyId], references: [id])
+  submissions  Submission[]
+  Notification Notification[]
+
+  @@map("assignments")
+}
+
+model Submission {
+  id           String   @id @default(uuid())
+  assignmentId String   @map("assignment_id")
+  studentId    String   @map("student_id")
+  fileUrl      String   @map("file_url")
+  grade        Int?
+  feedback     String?
+  submittedAt  DateTime @default(now()) @map("submitted_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id])
+  student    Profile    @relation(fields: [studentId], references: [id])
+
+  @@unique([assignmentId, studentId])
+  @@map("submissions")
+}
+
+model Notification {
+  id           String   @id @default(uuid())
+  userId       String?
+  title        String
+  message      String
+  assignmentId String?
+  resourceId   String?
+  createdAt    DateTime @default(now())
+
+  user       Profile?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource   Resource?   @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  assignment Assignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  Course     Course?     @relation(fields: [courseId], references: [id])
+  courseId   String?
+
+  @@map("notifications")
+}
+
+model Attendance {
+  id        String   @id @default(uuid())
+  date      DateTime
+  courseId  String
+  facultyId String
+  timeSlot  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  course  Course             @relation(fields: [courseId], references: [id])
+  faculty Profile            @relation(fields: [facultyId], references: [id])
+  records AttendanceRecord[]
+
+  @@map("attendances")
+}
+
+model AttendanceRecord {
+  id           String   @id @default(uuid())
+  attendanceId String
+  studentId    String
+  status       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  attendance Attendance @relation(fields: [attendanceId], references: [id])
+  student    Profile    @relation(fields: [studentId], references: [id])
+
+  @@unique([attendanceId, studentId])
+  @@map("attendance_records")
+}
